@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IDDA Interactive Research Demo</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --card: #ffffff;
+      --text: #f8fafc;
+      --muted: #cbd5e1;
+      --line: #334155;
+      --green: #059669;
+      --red: #dc2626;
+      --amber: #d97706;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 26px;
+    }
+    h1 { margin: 0 0 8px; font-size: 32px; }
+    .subtitle {
+      color: var(--muted);
+      line-height: 1.45;
+      margin-bottom: 20px;
+      max-width: 1040px;
+    }
+    .top {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 18px;
+      align-items: start;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.26);
+    }
+    label { display: block; color: #e5e7eb; font-weight: 700; margin: 14px 0 8px; }
+    select, input[type="range"] { width: 100%; }
+    select {
+      background: #020617;
+      color: #e5e7eb;
+      border: 1px solid #475569;
+      border-radius: 10px;
+      padding: 10px;
+      font-weight: 700;
+    }
+    .range-row {
+      display: grid;
+      grid-template-columns: 1fr 52px;
+      gap: 10px;
+      align-items: center;
+      color: #cbd5e1;
+      font-size: 13px;
+    }
+    button {
+      border: none;
+      color: white;
+      padding: 11px 14px;
+      border-radius: 10px;
+      font-weight: 800;
+      cursor: pointer;
+      margin: 12px 8px 0 0;
+    }
+    .run { background: var(--green); }
+    .inject { background: var(--amber); }
+    .reset { background: var(--red); }
+    .run:hover { background: #047857; }
+    .inject:hover { background: #b45309; }
+    .reset:hover { background: #b91c1c; }
+    .report-card {
+      background: #fff;
+      color: #111827;
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.26);
+    }
+    pre {
+      background: #020617;
+      color: #e5e7eb;
+      padding: 18px;
+      border-radius: 14px;
+      overflow-x: auto;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      margin: 0;
+      min-height: 286px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      margin-top: 18px;
+    }
+    .card {
+      background: var(--card);
+      color: #111827;
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.26);
+    }
+    .card.full { grid-column: 1 / -1; }
+    canvas.chart {
+      width: 100% !important;
+      height: 310px !important;
+    }
+    .heat-row {
+      display: grid;
+      grid-template-columns: 390px 1fr;
+      gap: 24px;
+      align-items: center;
+    }
+    #heatmap {
+      width: 360px;
+      height: 360px;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      background: white;
+    }
+    .small { color: #475569; line-height: 1.55; }
+    .badge-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+    .badge {
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: #e5e7eb;
+      font-weight: 800;
+      font-size: 13px;
+    }
+    .legend {
+      color: #94a3b8;
+      margin-top: 16px;
+      font-size: 14px;
+    }
+    @media (max-width: 980px) {
+      .top, .grid, .heat-row { grid-template-columns: 1fr; }
+      #heatmap { width: 300px; height: 300px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>IDDA Interactive Research Demo</h1>
+    <div class="subtitle">
+      Public-safe experimental demo for exploring layered decision dynamics, trajectory monitoring, synchronization effects, and supervisory stability behavior. This version is intentionally simplified and does not expose internal implementation logic.
+    </div>
+
+    <div class="top">
+      <div class="panel">
+        <label>Scenario</label>
+        <select id="scenario">
+          <option value="recovery">Recovery Rebound</option>
+          <option value="latent">Latent Synchronization</option>
+          <option value="drift">Silent Drift</option>
+          <option value="noise">Noise Disturbance</option>
+          <option value="sensor">Sensor Degradation</option>
+          <option value="threshold">Threshold Stress</option>
+        </select>
+
+        <label>Layer coupling</label>
+        <div class="range-row"><input id="coupling" type="range" min="0" max="1" step="0.01" value="0.55" oninput="syncLabels()" /><span id="couplingVal"></span></div>
+
+        <label>Signal variability</label>
+        <div class="range-row"><input id="noise" type="range" min="0" max="0.12" step="0.005" value="0.035" oninput="syncLabels()" /><span id="noiseVal"></span></div>
+
+        <label>Recovery profile</label>
+        <div class="range-row"><input id="recovery" type="range" min="0" max="1" step="0.01" value="0.65" oninput="syncLabels()" /><span id="recoveryVal"></span></div>
+
+        <label>Damping profile</label>
+        <div class="range-row"><input id="damping" type="range" min="0" max="1" step="0.01" value="0.55" oninput="syncLabels()" /><span id="dampingVal"></span></div>
+
+        <label>Observation window</label>
+        <div class="range-row"><input id="window" type="range" min="8" max="42" step="1" value="24" oninput="syncLabels()" /><span id="windowVal"></span></div>
+
+        <label>Supervisory sensitivity</label>
+        <div class="range-row"><input id="tau" type="range" min="0.42" max="0.78" step="0.01" value="0.58" oninput="syncLabels()" /><span id="tauVal"></span></div>
+
+        <button class="run" onclick="runLab()">Run Demo</button>
+        <button class="inject" onclick="injectDisturbance()">Inject Disturbance</button>
+        <button class="reset" onclick="resetDefaults()">Reset</button>
+      </div>
+
+      <div class="report-card">
+        <h2>Experiment Report</h2>
+        <pre id="report">Click Run Demo.</pre>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card"><canvas class="chart" id="syncChart"></canvas></div>
+      <div class="card"><canvas class="chart" id="activationChart"></canvas></div>
+      <div class="card"><canvas class="chart" id="riskChart"></canvas></div>
+      <div class="card"><canvas class="chart" id="driftChart"></canvas></div>
+      <div class="card"><canvas class="chart" id="stateChart"></canvas></div>
+      <div class="card"><canvas class="chart" id="thresholdChart"></canvas></div>
+      <div class="card full"><canvas class="chart" id="layerChart"></canvas></div>
+    </div>
+
+    <div class="card full" style="margin-top:18px;">
+      <h2>Layer Correlation Map</h2>
+      <div class="heat-row">
+        <canvas id="heatmap" width="360" height="360"></canvas>
+        <div class="small">
+          <p><b>t = <span id="heatT">0</span></b></p>
+          <input id="timeSlider" type="range" min="0" max="259" value="0" oninput="drawHeatmap(Number(this.value))" />
+          <div class="badge-row">
+            <span class="badge">0 = nominal</span>
+            <span class="badge">1 = watch</span>
+            <span class="badge">2 = hold</span>
+            <span class="badge">3 = critical</span>
+          </div>
+          <p>
+            The map visualizes correlation strength between abstract layers λ0..λ4. Darker cells indicate stronger co-movement. This public demo emphasizes observable behavior rather than internal decision logic.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      Note: This is a public-safe conceptual simulation. It demonstrates trajectory and stability behavior without exposing production rules, internal tuning, or deployment logic.
+    </div>
+  </div>
+
+<script>
+const T = 260;
+const L = 5;
+const STATE_NOMINAL = 0;
+const STATE_WATCH = 1;
+const STATE_HOLD = 2;
+const STATE_CRITICAL = 3;
+let seed = 4242;
+let charts = [];
+let last = null;
+let manualImpulse = false;
+
+const INTERNAL_LIMITS = Object.freeze({
+  sync: 0.82,
+  activation: 4,
+  risk: 0.78,
+  drift: 0.42
+});
+
+function random() { seed = (1664525 * seed + 1013904223) % 4294967296; return seed / 4294967296; }
+function randn() { let u=0,v=0; while(u===0)u=random(); while(v===0)v=random(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+function clip(x,a,b){ return Math.max(a, Math.min(b,x)); }
+function mean(a){ return a.reduce((x,y)=>x+y,0)/a.length; }
+function std(a){ const m=mean(a); return Math.sqrt(mean(a.map(x=>(x-m)*(x-m)))); }
+function corr(x,y){ const mx=mean(x), my=mean(y); let n=0, dx=0, dy=0; for(let i=0;i<x.length;i++){ const ax=x[i]-mx, ay=y[i]-my; n+=ax*ay; dx+=ax*ax; dy+=ay*ay; } const d=Math.sqrt(dx*dy); return d===0?0:n/d; }
+function getParams(){ return {
+  scenario: document.getElementById('scenario').value,
+  coupling: Number(document.getElementById('coupling').value),
+  variability: Number(document.getElementById('noise').value),
+  recovery: Number(document.getElementById('recovery').value),
+  damping: Number(document.getElementById('damping').value),
+  window: Number(document.getElementById('window').value),
+  sensitivity: Number(document.getElementById('tau').value)
+}; }
+function syncLabels(){ ['coupling','noise','recovery','damping','window','tau'].forEach(id=>{ document.getElementById(id+'Val').textContent = document.getElementById(id).value; }); }
+function resetDefaults(){
+  document.getElementById('scenario').value='recovery';
+  document.getElementById('coupling').value='0.55';
+  document.getElementById('noise').value='0.035';
+  document.getElementById('recovery').value='0.65';
+  document.getElementById('damping').value='0.55';
+  document.getElementById('window').value='24';
+  document.getElementById('tau').value='0.58';
+  manualImpulse=false;
+  syncLabels(); runLab();
+}
+function computeC(h,start,end){ const C=Array.from({length:L},()=>Array(L).fill(0)); if(end-start<5){ for(let i=0;i<L;i++)C[i][i]=1; return C; } for(let i=0;i<L;i++){ for(let j=0;j<L;j++){ if(i===j){C[i][j]=1; continue;} const x=[],y=[]; for(let t=start;t<=end;t++){x.push(h[t][i]); y.push(h[t][j]);} C[i][j]=corr(x,y); } } return C; }
+function syncFromC(C){ const v=[]; for(let i=0;i<L;i++)for(let j=i+1;j<L;j++)v.push(Math.abs(C[i][j])); return mean(v); }
+function dispersionFromC(C){ const v=[]; for(let i=0;i<L;i++)for(let j=i+1;j<L;j++)v.push(Math.abs(C[i][j])); return std(v); }
+function countActivation(row,thresholdRow){ let k=0; for(let i=0;i<L;i++) if(row[i]>thresholdRow[i]) k++; return k; }
+function scenarioPulse(name,t,i,p){
+  let v=0;
+  if(name==='recovery'){
+    if(t>=35 && t<60 && i===Math.min(Math.floor((t-35)/5),L-1)) v += 0.42;
+    if(t>=108 && t<128) v += p.recovery * [0.25,0.31,0.37,0.29,0.33][i];
+  }
+  if(name==='latent'){
+    if(t>=168 && t<178) v += [0.12,0.13,0.15,0.14,0.12][i];
+  }
+  if(name==='noise'){
+    if(t>=70 && t<120) v += randn() * 0.20;
+  }
+  if(name==='sensor'){
+    if(t>=72 && t<135 && i===2) v += 0.55;
+    if(t>=110 && t<150 && i===3) v += 0.25;
+  }
+  if(name==='threshold'){
+    if(t>=80 && t<150) v += 0.12 + 0.05*Math.sin(t/5+i);
+  }
+  if(manualImpulse && t>=150 && t<166) v += 0.22 + 0.03*i;
+  return v;
+}
+function simulate(){
+  const p=getParams(); seed=4242;
+  const h=Array.from({length:T},()=>Array(L).fill(0));
+  const z=Array(T).fill(0), ref=Array(T).fill(0), drift=Array(T).fill(0), narrative=Array(T).fill(0);
+  const sync=Array(T).fill(0), dispersion=Array(T).fill(0), risk=Array(T).fill(0), activation=Array(T).fill(0), state=Array(T).fill(0);
+  const thresholdLog=Array.from({length:T},()=>Array(L).fill(p.sensitivity));
+  const CLog=Array.from({length:T},()=>Array.from({length:L},()=>Array(L).fill(0)));
+  let shared=0, bias=0, holdCounter=0;
+  const memory=32;
+
+  for(let t=1;t<T;t++){
+    let coupling=0;
+    if(p.scenario==='latent') coupling = t<45?0:(t<160?(t-45)/115:1);
+    else coupling = p.coupling * (t/T);
+
+    shared = 0.94*shared + randn()*p.variability*0.55;
+
+    for(let i=0;i<L;i++){
+      const local = 0.84*h[t-1][i] + 0.025 + randn()*p.variability + 0.025*Math.sin((t+i*13)/20);
+      const coupled = 0.39 + shared + 0.02*i;
+      h[t][i] = (1-coupling)*local + coupling*coupled + scenarioPulse(p.scenario,t,i,p);
+      h[t][i] = clip(h[t][i],0,1);
+    }
+
+    if(p.scenario==='drift'){
+      if(t>55 && t<210) bias += 0.0036;
+      else bias += 0.0004;
+    } else {
+      bias += 0.0003 * p.coupling;
+    }
+
+    z[t] = 0.985*z[t-1] + 0.015*(0.06*Math.sin(t/17)+randn()*0.012) + bias*0.018;
+    drift[t] = Math.abs(z[t]-ref[t]);
+    if(t>memory) narrative[t] = Math.abs(z[t]-z[t-memory]);
+
+    if(state[t-1]===STATE_HOLD) holdCounter += 1;
+    else holdCounter = Math.max(0, holdCounter - (1 + p.recovery*3));
+
+    const protection = Math.max(0, 1 - holdCounter / (8 + 34*p.damping));
+    const thresholdRow = Array(L).fill(0).map((_,i)=> p.sensitivity * (1 + 0.42*protection + 0.04*Math.sin((t+i)/16)));
+    if(p.scenario==='threshold' && t>=80 && t<150){
+      for(let i=0;i<L;i++) thresholdRow[i] *= (i%2===0 ? 0.82 : 1.12);
+    }
+    thresholdLog[t]=thresholdRow;
+
+    const start=Math.max(0,t-p.window);
+    const C=computeC(h,start,t); CLog[t]=C;
+    sync[t]=syncFromC(C); dispersion[t]=dispersionFromC(C);
+    risk[t]=sync[t]*(1-dispersion[t]);
+    activation[t]=countActivation(h[t],thresholdRow);
+
+    if(activation[t]>=INTERNAL_LIMITS.activation) state[t]=STATE_HOLD;
+    else if(risk[t]>INTERNAL_LIMITS.risk && activation[t]<3) state[t]=STATE_WATCH;
+    else if(drift[t]>INTERNAL_LIMITS.drift && activation[t]<2 && sync[t]<0.7) state[t]=STATE_HOLD;
+    else if(drift[t]>0.30 || narrative[t]>0.22 || sync[t]>0.65 || activation[t]>=2) state[t]=STATE_WATCH;
+    else state[t]=STATE_NOMINAL;
+
+    if(state[t]===STATE_HOLD){
+      for(let i=0;i<L;i++) h[t][i] *= (0.86 + 0.10*p.damping);
+      bias *= (0.98 + 0.015*p.damping);
+    }
+  }
+  return {p,h,z,ref,drift,narrative,sync,dispersion,risk,activation,state,thresholdLog,CLog};
+}
+function maxIdx(a){ let v=-Infinity, idx=0; for(let i=0;i<a.length;i++) if(a[i]>v){v=a[i];idx=i;} return {v,idx}; }
+function count(a,x){ return a.filter(v=>v===x).length; }
+function first(a,fn){ for(let i=0;i<a.length;i++) if(fn(a[i],i)) return i; return -1; }
+function report(r){
+  const ms=maxIdx(r.sync), mr=maxIdx(r.risk), ma=maxIdx(r.activation), md=maxIdx(r.drift), mp=maxIdx(r.dispersion);
+  const fh=first(r.state,x=>x===STATE_HOLD), fw=first(r.state,x=>x===STATE_WATCH);
+  const classification = fh>=0 ? 'HOLD / supervisory intervention' : (fw>=0 ? 'WATCH / early warning' : 'NOMINAL / stable');
+  return `IDDA Interactive Research Demo\nScenario: ${r.p.scenario}\n\n`+
+  `Classification: ${classification}\n`+
+  `Peak synchronization: ${ms.v.toFixed(3)} at t=${ms.idx}\n`+
+  `Peak dispersion: ${mp.v.toFixed(3)} at t=${mp.idx}\n`+
+  `Peak trajectory risk: ${mr.v.toFixed(3)} at t=${mr.idx}\n`+
+  `Peak layer activation: ${ma.v} at t=${ma.idx}\n`+
+  `Peak decision drift: ${md.v.toFixed(3)} at t=${md.idx}\n`+
+  `Ticks nominal: ${count(r.state,STATE_NOMINAL)}\n`+
+  `Ticks watch: ${count(r.state,STATE_WATCH)}\n`+
+  `Ticks hold: ${count(r.state,STATE_HOLD)}\n`+
+  `First watch: ${fw}\n`+
+  `First hold: ${fh}\n\n`+
+  `Interpretation:\n`+
+  `This public demo visualizes how layered environments may develop instability through rebound behavior, latent synchronization, noisy disturbance, degraded sensing, threshold stress, or quiet decision drift.\n\n`+
+  `Note:\n`+
+  `The demo is intentionally simplified. It exposes observable behavior, not internal production logic or protected tuning procedures.`;
+}
+function destroyCharts(){ charts.forEach(c=>c.destroy()); charts=[]; }
+function makeChart(id,title,datasets,yMin=null,yMax=null){ const labels=Array.from({length:T},(_,i)=>i); const chart=new Chart(document.getElementById(id),{type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:title},legend:{display:true}},scales:{x:{title:{display:true,text:'time'}},y:{min:yMin,max:yMax,title:{display:true,text:'value'}}},elements:{point:{radius:0}}}}); charts.push(chart); }
+function layer(h,i){ return h.map(r=>r[i]); }
+function runLab(){ manualImpulse=false; last=simulate(); render(last); }
+function injectDisturbance(){ manualImpulse=true; last=simulate(); render(last); }
+function render(r){
+  destroyCharts(); document.getElementById('report').textContent=report(r);
+  makeChart('syncChart','Layer Synchronization Trajectory',[
+    {label:'synchronization',data:r.sync,borderWidth:2},{label:'reference band',data:Array(T).fill(INTERNAL_LIMITS.sync),borderDash:[6,6],borderWidth:1}
+  ],0,1.05);
+  makeChart('activationChart','Layer Activation Count',[
+    {label:'activation',data:r.activation,borderWidth:2,stepped:true},{label:'reference band',data:Array(T).fill(INTERNAL_LIMITS.activation),borderDash:[6,6],borderWidth:1}
+  ],0,5.2);
+  makeChart('riskChart','Trajectory Risk Indicator',[
+    {label:'trajectory risk',data:r.risk,borderWidth:2},{label:'reference band',data:Array(T).fill(INTERNAL_LIMITS.risk),borderDash:[6,6],borderWidth:1}
+  ],0,1.05);
+  makeChart('driftChart','Decision Drift Indicator',[
+    {label:'decision drift',data:r.drift,borderWidth:2},{label:'reference band',data:Array(T).fill(INTERNAL_LIMITS.drift),borderDash:[6,6],borderWidth:1}
+  ],0,0.75);
+  makeChart('stateChart','Operational State',[
+    {label:'state',data:r.state,borderWidth:2,stepped:true}
+  ],-0.1,3.1);
+  makeChart('thresholdChart','Dynamic Supervisory Boundary, λ0/λ1',[
+    {label:'boundary λ0',data:r.thresholdLog.map(x=>x[0]),borderWidth:2},{label:'boundary λ1',data:r.thresholdLog.map(x=>x[1]),borderWidth:2}
+  ],0.35,1.0);
+  makeChart('layerChart','Layer Activity h_i(t)',[0,1,2,3,4].map(i=>({label:`λ${i}`,data:layer(r.h,i),borderWidth:2})),0,1.05);
+  document.getElementById('timeSlider').value=0; drawHeatmap(0);
+}
+function colorFor(v){ const x=clip(v,0,1); const r=Math.floor(246-90*(1-x)); const g=Math.floor(246-220*x); const b=Math.floor(255-60*x); return `rgb(${r},${g},${b})`; }
+function drawHeatmap(t){ if(!last)return; t=Math.max(0,Math.min(T-1,t)); document.getElementById('heatT').textContent=t; document.getElementById('timeSlider').value=t; const canvas=document.getElementById('heatmap'), ctx=canvas.getContext('2d'), W=canvas.width; ctx.clearRect(0,0,W,W); const pad=46, cell=(W-pad-10)/L, C=last.CLog[t]; ctx.font='15px Arial'; ctx.fillStyle='#111827'; for(let i=0;i<L;i++){ctx.fillText(`λ${i}`,pad+i*cell+cell*.38,28); ctx.fillText(`λ${i}`,12,pad+i*cell+cell*.60);} for(let i=0;i<L;i++){ for(let j=0;j<L;j++){ const v=Math.abs(C[i][j]); ctx.fillStyle=colorFor(v); ctx.fillRect(pad+j*cell,pad+i*cell,cell-3,cell-3); ctx.fillStyle=v>.65?'#fff':'#111827'; ctx.font='13px Arial'; ctx.fillText(v.toFixed(2),pad+j*cell+cell*.22,pad+i*cell+cell*.56); }} }
+
+syncLabels(); runLab();
+</script>
+</body>
+</html>
