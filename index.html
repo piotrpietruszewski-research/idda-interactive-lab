@@ -16,6 +16,8 @@
       --green: #059669;
       --red: #dc2626;
       --amber: #d97706;
+      --blue: #2563eb;
+      --violet: #7c3aed;
     }
     * { box-sizing: border-box; }
     body {
@@ -38,7 +40,7 @@
     }
     .top {
       display: grid;
-      grid-template-columns: 360px 1fr;
+      grid-template-columns: 380px 1fr;
       gap: 18px;
       align-items: start;
     }
@@ -82,6 +84,34 @@
     .run:hover { background: #047857; }
     .inject:hover { background: #b45309; }
     .reset:hover { background: #b91c1c; }
+    .gallery {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 9px;
+      margin: 8px 0 14px;
+    }
+    .preset {
+      width: 100%;
+      text-align: left;
+      background: #020617;
+      border: 1px solid #334155;
+      color: #e5e7eb;
+      margin: 0;
+      padding: 10px 12px;
+      border-radius: 12px;
+      line-height: 1.25;
+    }
+    .preset:hover { background: #172033; }
+    .preset.active {
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 2px rgba(96,165,250,.22) inset;
+    }
+    .preset small {
+      display: block;
+      color: #94a3b8;
+      font-weight: 500;
+      margin-top: 3px;
+    }
     .report-card {
       background: #fff;
       color: #111827;
@@ -160,8 +190,18 @@
 
     <div class="top">
       <div class="panel">
+        <label>Scenario Gallery</label>
+        <div class="gallery">
+          <button class="preset active" id="preset-recovery" onclick="applyPreset('recovery')">Recovery Rebound<small>A recovery phase creates secondary instability.</small></button>
+          <button class="preset" id="preset-latent" onclick="applyPreset('latent')">Latent Synchronization<small>Layer coupling increases before visible activation.</small></button>
+          <button class="preset" id="preset-drift" onclick="applyPreset('drift')">Silent Drift<small>The decision trajectory moves quietly from reference.</small></button>
+          <button class="preset" id="preset-noise" onclick="applyPreset('noise')">Noise Disturbance<small>High variability stresses supervisory behavior.</small></button>
+          <button class="preset" id="preset-sensor" onclick="applyPreset('sensor')">Sensor Degradation<small>A degraded layer propagates instability.</small></button>
+          <button class="preset" id="preset-threshold" onclick="applyPreset('threshold')">Threshold Stress<small>Boundary mismatch causes unstable switching.</small></button>
+        </div>
+
         <label>Scenario</label>
-        <select id="scenario">
+        <select id="scenario" onchange="syncPresetFromSelect(); runLab();">
           <option value="recovery">Recovery Rebound</option>
           <option value="latent">Latent Synchronization</option>
           <option value="drift">Silent Drift</option>
@@ -253,6 +293,15 @@ const INTERNAL_LIMITS = Object.freeze({
   drift: 0.42
 });
 
+const PRESETS = {
+  recovery: { coupling: 0.55, noise: 0.035, recovery: 0.65, damping: 0.55, window: 24, tau: 0.58 },
+  latent: { coupling: 0.80, noise: 0.028, recovery: 0.40, damping: 0.60, window: 28, tau: 0.60 },
+  drift: { coupling: 0.28, noise: 0.026, recovery: 0.35, damping: 0.72, window: 30, tau: 0.62 },
+  noise: { coupling: 0.48, noise: 0.075, recovery: 0.52, damping: 0.50, window: 18, tau: 0.58 },
+  sensor: { coupling: 0.58, noise: 0.032, recovery: 0.55, damping: 0.58, window: 24, tau: 0.57 },
+  threshold: { coupling: 0.62, noise: 0.035, recovery: 0.50, damping: 0.42, window: 20, tau: 0.56 }
+};
+
 function random() { seed = (1664525 * seed + 1013904223) % 4294967296; return seed / 4294967296; }
 function randn() { let u=0,v=0; while(u===0)u=random(); while(v===0)v=random(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
 function clip(x,a,b){ return Math.max(a, Math.min(b,x)); }
@@ -268,18 +317,32 @@ function getParams(){ return {
   window: Number(document.getElementById('window').value),
   sensitivity: Number(document.getElementById('tau').value)
 }; }
+function setValue(id, value){ document.getElementById(id).value = value; }
 function syncLabels(){ ['coupling','noise','recovery','damping','window','tau'].forEach(id=>{ document.getElementById(id+'Val').textContent = document.getElementById(id).value; }); }
-function resetDefaults(){
-  document.getElementById('scenario').value='recovery';
-  document.getElementById('coupling').value='0.55';
-  document.getElementById('noise').value='0.035';
-  document.getElementById('recovery').value='0.65';
-  document.getElementById('damping').value='0.55';
-  document.getElementById('window').value='24';
-  document.getElementById('tau').value='0.58';
-  manualImpulse=false;
-  syncLabels(); runLab();
+function setActivePreset(name){
+  document.querySelectorAll('.preset').forEach(el => el.classList.remove('active'));
+  const btn = document.getElementById('preset-' + name);
+  if(btn) btn.classList.add('active');
 }
+function applyPreset(name){
+  const p = PRESETS[name];
+  document.getElementById('scenario').value = name;
+  setValue('coupling', p.coupling);
+  setValue('noise', p.noise);
+  setValue('recovery', p.recovery);
+  setValue('damping', p.damping);
+  setValue('window', p.window);
+  setValue('tau', p.tau);
+  manualImpulse = false;
+  setActivePreset(name);
+  syncLabels();
+  runLab();
+}
+function syncPresetFromSelect(){
+  const name = document.getElementById('scenario').value;
+  setActivePreset(name);
+}
+function resetDefaults(){ applyPreset('recovery'); }
 function computeC(h,start,end){ const C=Array.from({length:L},()=>Array(L).fill(0)); if(end-start<5){ for(let i=0;i<L;i++)C[i][i]=1; return C; } for(let i=0;i<L;i++){ for(let j=0;j<L;j++){ if(i===j){C[i][j]=1; continue;} const x=[],y=[]; for(let t=start;t<=end;t++){x.push(h[t][i]); y.push(h[t][j]);} C[i][j]=corr(x,y); } } return C; }
 function syncFromC(C){ const v=[]; for(let i=0;i<L;i++)for(let j=i+1;j<L;j++)v.push(Math.abs(C[i][j])); return mean(v); }
 function dispersionFromC(C){ const v=[]; for(let i=0;i<L;i++)for(let j=i+1;j<L;j++)v.push(Math.abs(C[i][j])); return std(v); }
@@ -373,11 +436,17 @@ function simulate(){
 function maxIdx(a){ let v=-Infinity, idx=0; for(let i=0;i<a.length;i++) if(a[i]>v){v=a[i];idx=i;} return {v,idx}; }
 function count(a,x){ return a.filter(v=>v===x).length; }
 function first(a,fn){ for(let i=0;i<a.length;i++) if(fn(a[i],i)) return i; return -1; }
+function scenarioName(value){
+  return {
+    recovery:'Recovery Rebound', latent:'Latent Synchronization', drift:'Silent Drift',
+    noise:'Noise Disturbance', sensor:'Sensor Degradation', threshold:'Threshold Stress'
+  }[value] || value;
+}
 function report(r){
   const ms=maxIdx(r.sync), mr=maxIdx(r.risk), ma=maxIdx(r.activation), md=maxIdx(r.drift), mp=maxIdx(r.dispersion);
   const fh=first(r.state,x=>x===STATE_HOLD), fw=first(r.state,x=>x===STATE_WATCH);
   const classification = fh>=0 ? 'HOLD / supervisory intervention' : (fw>=0 ? 'WATCH / early warning' : 'NOMINAL / stable');
-  return `IDDA Interactive Research Demo\nScenario: ${r.p.scenario}\n\n`+
+  return `IDDA Interactive Research Demo\nScenario: ${scenarioName(r.p.scenario)}\n\n`+
   `Classification: ${classification}\n`+
   `Peak synchronization: ${ms.v.toFixed(3)} at t=${ms.idx}\n`+
   `Peak dispersion: ${mp.v.toFixed(3)} at t=${mp.idx}\n`+
@@ -425,7 +494,7 @@ function render(r){
 function colorFor(v){ const x=clip(v,0,1); const r=Math.floor(246-90*(1-x)); const g=Math.floor(246-220*x); const b=Math.floor(255-60*x); return `rgb(${r},${g},${b})`; }
 function drawHeatmap(t){ if(!last)return; t=Math.max(0,Math.min(T-1,t)); document.getElementById('heatT').textContent=t; document.getElementById('timeSlider').value=t; const canvas=document.getElementById('heatmap'), ctx=canvas.getContext('2d'), W=canvas.width; ctx.clearRect(0,0,W,W); const pad=46, cell=(W-pad-10)/L, C=last.CLog[t]; ctx.font='15px Arial'; ctx.fillStyle='#111827'; for(let i=0;i<L;i++){ctx.fillText(`λ${i}`,pad+i*cell+cell*.38,28); ctx.fillText(`λ${i}`,12,pad+i*cell+cell*.60);} for(let i=0;i<L;i++){ for(let j=0;j<L;j++){ const v=Math.abs(C[i][j]); ctx.fillStyle=colorFor(v); ctx.fillRect(pad+j*cell,pad+i*cell,cell-3,cell-3); ctx.fillStyle=v>.65?'#fff':'#111827'; ctx.font='13px Arial'; ctx.fillText(v.toFixed(2),pad+j*cell+cell*.22,pad+i*cell+cell*.56); }} }
 
-syncLabels(); runLab();
+syncLabels(); applyPreset('recovery');
 </script>
 </body>
 </html>
