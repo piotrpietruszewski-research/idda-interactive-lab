@@ -67,6 +67,12 @@ The public version intentionally abstracts:
 
 ---
 
+## Canonical Reference
+
+[IDDA Foundational Constraints v1.0](docs/IDDA_Foundational_Constraints_v1.pdf)
+
+---
+
 ## Author
 
 Piotr Pietruszewski  
