@@ -112,6 +112,19 @@
       font-weight: 500;
       margin-top: 3px;
     }
+    .domain-case {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 12px;
+      background: #020617;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .domain-case b {
+      color: #f8fafc;
+    }
     .report-card {
       background: #fff;
       color: #111827;
@@ -198,6 +211,17 @@
           <button class="preset" id="preset-noise" onclick="applyPreset('noise')">Noise Disturbance<small>High variability stresses supervisory behavior.</small></button>
           <button class="preset" id="preset-sensor" onclick="applyPreset('sensor')">Sensor Degradation<small>A degraded layer propagates instability.</small></button>
           <button class="preset" id="preset-threshold" onclick="applyPreset('threshold')">Threshold Stress<small>Boundary mismatch causes unstable switching.</small></button>
+        </div>
+
+        <label>Domain Lens</label>
+        <select id="domain" onchange="runLab()">
+          <option value="agents">AI Agent Oversight</option>
+          <option value="cyber">Cybersecurity / SOC</option>
+          <option value="cloud">Cloud Recovery / Infrastructure</option>
+          <option value="industrial">Industrial IoT / Sensor Networks</option>
+        </select>
+        <div class="domain-case" id="domainCase">
+          Select a domain to interpret the same trajectory behavior in a concrete operational context.
         </div>
 
         <label>Scenario</label>
@@ -293,6 +317,29 @@ const INTERNAL_LIMITS = Object.freeze({
   drift: 0.42
 });
 
+const DOMAIN_CASES = {
+  agents: {
+    title: 'AI Agent Oversight',
+    description: 'Supervisory monitoring for multiple AI agents where local actions may look valid while the collective trajectory begins to drift, synchronize, or rebound after correction.',
+    layerMap: ['Input stream', 'Context memory', 'Policy state', 'Agent decision', 'Supervisor view']
+  },
+  cyber: {
+    title: 'Cybersecurity / SOC',
+    description: 'Layered defense monitoring where alerts, authentication, endpoint signals, network telemetry, and response automation may become correlated before a visible incident.',
+    layerMap: ['Network', 'Endpoint', 'Identity', 'Detection', 'Response']
+  },
+  cloud: {
+    title: 'Cloud Recovery / Infrastructure',
+    description: 'Recovery and failover supervision where autoscaling, queues, storage, service health, and orchestration can rebound into secondary instability.',
+    layerMap: ['Traffic', 'Compute', 'Queue', 'Storage', 'Orchestration']
+  },
+  industrial: {
+    title: 'Industrial IoT / Sensor Networks',
+    description: 'Sensor-layer supervision where local readings remain plausible but correlation, degradation, drift, or threshold stress can expose unstable operational trajectories.',
+    layerMap: ['Sensor A', 'Sensor B', 'Controller', 'Process', 'Safety layer']
+  }
+};
+
 const PRESETS = {
   recovery: { coupling: 0.55, noise: 0.035, recovery: 0.65, damping: 0.55, window: 24, tau: 0.58 },
   latent: { coupling: 0.80, noise: 0.028, recovery: 0.40, damping: 0.60, window: 28, tau: 0.60 },
@@ -309,6 +356,7 @@ function mean(a){ return a.reduce((x,y)=>x+y,0)/a.length; }
 function std(a){ const m=mean(a); return Math.sqrt(mean(a.map(x=>(x-m)*(x-m)))); }
 function corr(x,y){ const mx=mean(x), my=mean(y); let n=0, dx=0, dy=0; for(let i=0;i<x.length;i++){ const ax=x[i]-mx, ay=y[i]-my; n+=ax*ay; dx+=ax*ax; dy+=ay*ay; } const d=Math.sqrt(dx*dy); return d===0?0:n/d; }
 function getParams(){ return {
+  domain: document.getElementById('domain').value,
   scenario: document.getElementById('scenario').value,
   coupling: Number(document.getElementById('coupling').value),
   variability: Number(document.getElementById('noise').value),
@@ -446,7 +494,12 @@ function report(r){
   const ms=maxIdx(r.sync), mr=maxIdx(r.risk), ma=maxIdx(r.activation), md=maxIdx(r.drift), mp=maxIdx(r.dispersion);
   const fh=first(r.state,x=>x===STATE_HOLD), fw=first(r.state,x=>x===STATE_WATCH);
   const classification = fh>=0 ? 'HOLD / supervisory intervention' : (fw>=0 ? 'WATCH / early warning' : 'NOMINAL / stable');
-  return `IDDA Interactive Research Demo\nScenario: ${scenarioName(r.p.scenario)}\n\n`+
+  const domain = DOMAIN_CASES[r.p.domain];
+  return `IDDA Interactive Research Demo
+Domain: ${domain.title}
+Scenario: ${scenarioName(r.p.scenario)}
+
+`+
   `Classification: ${classification}\n`+
   `Peak synchronization: ${ms.v.toFixed(3)} at t=${ms.idx}\n`+
   `Peak dispersion: ${mp.v.toFixed(3)} at t=${mp.idx}\n`+
@@ -458,8 +511,21 @@ function report(r){
   `Ticks hold: ${count(r.state,STATE_HOLD)}\n`+
   `First watch: ${fw}\n`+
   `First hold: ${fh}\n\n`+
-  `Interpretation:\n`+
-  `This public demo visualizes how layered environments may develop instability through rebound behavior, latent synchronization, noisy disturbance, degraded sensing, threshold stress, or quiet decision drift.\n\n`+
+  `Domain interpretation:
+`+
+  `${domain.description}
+
+`+
+  `Layer mapping:
+`+
+  `λ0=${domain.layerMap[0]}, λ1=${domain.layerMap[1]}, λ2=${domain.layerMap[2]}, λ3=${domain.layerMap[3]}, λ4=${domain.layerMap[4]}
+
+`+
+  `Interpretation:
+`+
+  `This public demo visualizes how layered environments may develop instability through rebound behavior, latent synchronization, noisy disturbance, degraded sensing, threshold stress, or quiet decision drift.
+
+`+
   `Note:\n`+
   `The demo is intentionally simplified. It exposes observable behavior, not internal production logic or protected tuning procedures.`;
 }
@@ -470,6 +536,7 @@ function runLab(){ manualImpulse=false; last=simulate(); render(last); }
 function injectDisturbance(){ manualImpulse=true; last=simulate(); render(last); }
 function render(r){
   destroyCharts(); document.getElementById('report').textContent=report(r);
+  updateDomainCase(r.p.domain);
   makeChart('syncChart','Layer Synchronization Trajectory',[
     {label:'synchronization',data:r.sync,borderWidth:2},{label:'reference band',data:Array(T).fill(INTERNAL_LIMITS.sync),borderDash:[6,6],borderWidth:1}
   ],0,1.05);
@@ -492,6 +559,12 @@ function render(r){
   document.getElementById('timeSlider').value=0; drawHeatmap(0);
 }
 function colorFor(v){ const x=clip(v,0,1); const r=Math.floor(246-90*(1-x)); const g=Math.floor(246-220*x); const b=Math.floor(255-60*x); return `rgb(${r},${g},${b})`; }
+function updateDomainCase(domainKey){
+  const d = DOMAIN_CASES[domainKey];
+  const el = document.getElementById('domainCase');
+  if(!d || !el) return;
+  el.innerHTML = `<b>${d.title}</b><br>${d.description}<br><br><b>Layer interpretation:</b><br>λ0 ${d.layerMap[0]} · λ1 ${d.layerMap[1]} · λ2 ${d.layerMap[2]} · λ3 ${d.layerMap[3]} · λ4 ${d.layerMap[4]}`;
+}
 function drawHeatmap(t){ if(!last)return; t=Math.max(0,Math.min(T-1,t)); document.getElementById('heatT').textContent=t; document.getElementById('timeSlider').value=t; const canvas=document.getElementById('heatmap'), ctx=canvas.getContext('2d'), W=canvas.width; ctx.clearRect(0,0,W,W); const pad=46, cell=(W-pad-10)/L, C=last.CLog[t]; ctx.font='15px Arial'; ctx.fillStyle='#111827'; for(let i=0;i<L;i++){ctx.fillText(`λ${i}`,pad+i*cell+cell*.38,28); ctx.fillText(`λ${i}`,12,pad+i*cell+cell*.60);} for(let i=0;i<L;i++){ for(let j=0;j<L;j++){ const v=Math.abs(C[i][j]); ctx.fillStyle=colorFor(v); ctx.fillRect(pad+j*cell,pad+i*cell,cell-3,cell-3); ctx.fillStyle=v>.65?'#fff':'#111827'; ctx.font='13px Arial'; ctx.fillText(v.toFixed(2),pad+j*cell+cell*.22,pad+i*cell+cell*.56); }} }
 
 syncLabels(); applyPreset('recovery');
