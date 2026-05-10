@@ -1,6 +1,7 @@
 # IDDA Interactive Research Demo
 
 Public-safe experimental environment for exploring layered decision dynamics, synchronization effects, trajectory monitoring, and supervisory stability behavior.
+The demo is browser-based and focused on supervisory dynamics visualization rather than 3D rendering or graphical simulation engines.
 
 ## Overview
 
